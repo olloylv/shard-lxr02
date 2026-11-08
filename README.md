@@ -10,7 +10,7 @@ Erica Synths. Everything OpenElixir-02 does is kept; the SHARD additions are lis
 > SHARD-02 is not official Erica Synths firmware and is not affiliated with or approved by
 > Erica Synths or by the OpenElixir-02 author. You install it at your own risk.
 >
-> **Status: 0.5 is a test build.** It has been tested on a host build of the sound engine, not yet
+> **Status:** 0.5 has been checked on a host build of the sound engine, not yet
 > on an LXR-02. See [docs/TESTING.md](docs/TESTING.md).
 
 ## SHARD additions

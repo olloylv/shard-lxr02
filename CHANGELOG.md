@@ -3,7 +3,7 @@
 SHARD-02 versions. The changes of the OpenElixir-02 base are in its
 [release notes](https://github.com/tunefish777/openelixir-02/releases).
 
-## 0.5 — test build
+## 0.5 — 2026-11-09
 
 First version, based on OpenElixir-02 1.2.
 
