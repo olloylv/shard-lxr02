@@ -22,9 +22,10 @@ endif()
 
 # The project name is the firmware's name: it names the build outputs and is
 # shown on the start-up screen and as the USB-MIDI device name (FIRMWARE_NAME).
-project(OpenElixir-02
-    VERSION 1.2
-    DESCRIPTION "OpenElixir-02, custom firmware for the Erica Synths LXR-02 drum machine"
+# SHARD-02: SHARD 0.5 on the LXR-02, based on OpenElixir-02 1.2
+project(SHARD-02
+    VERSION 0.5
+    DESCRIPTION "SHARD-02, custom firmware for the Erica Synths LXR-02 drum machine (SHARD engines on OpenElixir-02)"
     LANGUAGES C CXX ASM
 )
 

@@ -623,6 +623,77 @@ int main(int argc, char** argv)
 		argc--;
 	}
 #ifdef HAVE_VOICE_SLOTS
+#ifdef SH02_FIRST_ENGINE
+	//SHARD: --kit <kit.snd> <out.wav>: render a kit file (as the LXR-02 loads it:
+	//engines first, then the parameters) with one bar of a fixed pattern at 120 BPM
+	if(argc == 4 && strcmp(argv[1], "--kit") == 0)
+	{
+		mapPeripherals();
+		for(int i = 0; i < 6; i++) faders[i] = 1.f;
+		setJackSwitches(0xf);
+		soundengine_init();
+		static uint8_t file[512];
+		FILE* f = fopen(argv[2], "rb");
+		if(!f) { perror(argv[2]); return 2; }
+		const size_t n = fread(file, 1, sizeof(file), f);
+		fclose(f);
+		if(n < 8 + END_OF_SOUND_PARAMETERS) return 2;
+		kitEngines_decode(&file[8 + END_OF_SOUND_PARAMETERS], (uint16_t)(n - 8 - END_OF_SOUND_PARAMETERS), kitEngines);
+		kitEngines_apply();
+		for(uint16_t par = 1; par < END_OF_SOUND_PARAMETERS; par++)
+		{
+			if(par == PAR_SLOT_ENGINE || par == PAR_SHARD_ENGINE) continue;
+			if(par >= PAR_TARGET_LFO1 && par <= PAR_TARGET_LFO6) continue;
+			if(par >= PAR_VEL_DEST_1 && par <= PAR_VEL_DEST_6) continue;
+			sendParam(par, file[8 + par]);
+		}
+		for(uint8_t v = 0; v < 6; v++)
+		{
+			sendParam(PAR_VOICE_LFO1 + v, file[8 + PAR_VOICE_LFO1 + v]);
+			sendTarget(FRONT_CC_LFO_TARGET, v, file[8 + PAR_TARGET_LFO1 + v]);
+			sendTarget(FRONT_CC_VELO_TARGET, v, file[8 + PAR_VEL_DEST_1 + v]);
+		}
+		//16 steps at 120 BPM: kick 0 4 8 12, snare 4 12, hats every 2nd, open hat 14, perc/FX off-beats
+		static const char* const pat[7] = { "x...x...x...x...", "..x.......x..x..", ".......x.......x", "....x.......x...", "....x.......x...", "x.x.x.x.x.x.x...", "..............x." };
+		//optional: SHARD_PAT="row1,row2,...,row7" (16 characters each)
+		const char* rows[7]; static char patBuf[7][17];
+		for(int t = 0; t < 7; t++) rows[t] = pat[t];
+		const char* env = getenv("SHARD_PAT");
+		for(int t = 0; env && t < 7; t++) { strncpy(patBuf[t], env, 16); patBuf[t][16] = 0; rows[t] = patBuf[t]; env = strchr(env, ','); if(env) env++; }
+		const int blocksPerStep = (int)(44140.f * 0.125f / OUTPUT_DMA_SIZE + 0.5f);
+		FILE* o = fopen(argv[3], "wb");
+		if(!o) { perror(argv[3]); return 2; }
+		static const uint8_t hdr[44] = { 'R','I','F','F',0,0,0,0,'W','A','V','E','f','m','t',' ',16,0,0,0,1,0,2,0, 0x6c,0xac,0,0, 0xb0,0xb1,0x02,0, 4,0,16,0,'d','a','t','a',0,0,0,0 };
+		fwrite(hdr, 1, 44, o);
+		int16_t output[OUTPUT_DMA_SIZE * 2], output2[OUTPUT_DMA_SIZE * 2];
+		uint32_t frames = 0;
+		for(int bar = 0; bar < 2; bar++)
+			for(int step = 0; step < 16; step++)
+			{
+				for(uint8_t t = 0; t < 7; t++)
+					if(rows[t][step] == 'x') voiceControl_noteOn(t, 60, getenv("SHARD_VEL") ? (uint8_t)atoi(getenv("SHARD_VEL")) : (step % 4 == 0 ? 120 : 75));
+				for(int b = 0; b < blocksPerStep; b++)
+				{
+					mixer_calcNextSampleBlock(output, output2);
+					//stereo out 1 + stereo out 2 summed, like a mixer
+					for(int i = 0; i < OUTPUT_DMA_SIZE * 2; i++)
+					{
+						int32_t x = output[i] + output2[i];
+						if(x > 32767) x = 32767;
+						if(x < -32768) x = -32768;
+						int16_t y = (int16_t)x;
+						fwrite(&y, 2, 1, o);
+					}
+					frames += OUTPUT_DMA_SIZE;
+				}
+			}
+		const uint32_t data = frames * 4, riff = data + 36;
+		fseek(o, 4, SEEK_SET); fwrite(&riff, 4, 1, o);
+		fseek(o, 40, SEEK_SET); fwrite(&data, 4, 1, o);
+		fclose(o);
+		return 0;
+	}
+#endif
 	if(argc == 2 && strcmp(argv[1], "--engines") == 0)
 	{
 		mapPeripherals();
