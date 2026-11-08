@@ -14,7 +14,17 @@ SRCS="$SRCS $ROOT/Core/Src/Soundengine/FxBus.c $ROOT/Core/Src/Soundengine/MIDI/M
 if [ -f "$ROOT/Core/Src/Preset/KitEngines.c" ]; then
 	SRCS="$SRCS $ROOT/Core/Src/Preset/KitEngines.c $ROOT/Core/Src/menu/Cc2Text.c"
 fi
+# SHARD engines (C++) and their glue, when the tree has them
+CXXSRCS=""
+if [ -d "$ROOT/Core/Src/Shard" ]; then
+	SRCS="$SRCS $ROOT/Core/Src/Shard/sh02.c"
+	CXXSRCS="$(ls "$ROOT"/Core/Src/Shard/engines/*.cc) $ROOT/Core/ThirdParty/stmlib/dsp/units.cc $ROOT/Core/ThirdParty/stmlib/utils/random.cc $ROOT/Core/ThirdParty/plaits/resources.cc $(ls "$ROOT"/Core/ThirdParty/plaits/dsp/physical_modelling/*.cc)"
+fi
 fail=0
+for f in $CXXSRCS; do
+	o="$OUT/obj/cxx_$(basename "$f" .cc).o"
+	g++ -c -std=c++17 -O1 -g -fno-exceptions -fno-rtti -w -DTEST=1 -I$ROOT/Core/Inc -I$ROOT/Core/ThirdParty -I$ROOT/Core/Src/Shard/engines "$f" -o "$o" 2>"$o.err" || { echo "FAIL $f"; head -8 "$o.err"; fail=1; }
+done
 for f in $SRCS; do
 	o="$OUT/obj/$(basename "$f" .c).o"
 	gcc -c $CFLAGS $INC "$f" -o "$o" 2>"$o.err" || { echo "FAIL $f"; head -8 "$o.err"; fail=1; }
@@ -24,4 +34,4 @@ python3 "$HERE/gen_ranges.py" "$ROOT" "$OUT/ranges_gen.c"
 for f in "$HERE"/*.c "$OUT/ranges_gen.c"; do
 	gcc -c $CFLAGS $INC "$f" -o "$OUT/obj/harness_$(basename "$f" .c).o" 2>"$OUT/obj/harness.err" || { cat "$OUT/obj/harness.err"; exit 1; }
 done
-gcc -o "$OUT/render" "$OUT"/obj/*.o -lm
+g++ -o "$OUT/render" "$OUT"/obj/*.o -lm

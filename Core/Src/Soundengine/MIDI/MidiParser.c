@@ -1221,6 +1221,13 @@ void midiParser_ccHandler(MidiMsg msg, uint8_t updateOriginalValue, uint8_t isFl
 					slot_setEngine(value.itg>>2, value.itg&3);
 				}
 				break;
+			case PAR_SHARD_ENGINE-128:
+				//SHARD: the same for the SHARD engines, value = slot*19 + engine-4
+				if(msg.status == MIDI_CC2 && updateOriginalValue && !isFloatModulator)
+				{
+					slot_setEngine(SH02_SLOT_FROM_NRPN(value.itg), SH02_ENGINE_FROM_NRPN(value.itg));
+				}
+				break;
 
 			default:
 				break;

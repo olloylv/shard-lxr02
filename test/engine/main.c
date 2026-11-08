@@ -232,6 +232,14 @@ static void switchEngine(uint8_t slot, uint8_t engine)
 	m.status = MIDI_CC2;
 	m.data1 = PAR_SLOT_ENGINE - 128;
 	m.data2 = (uint8_t)(slot * 4 + engine);
+#ifdef PAR_SHARD_ENGINE
+	if(engine >= SH02_FIRST_ENGINE)
+	{
+		//SHARD: NRPN 99, value = slot*19 + engine-4
+		m.data1 = PAR_SHARD_ENGINE - 128;
+		m.data2 = (uint8_t)(slot * SH02_NUM_ENGINES + engine - SH02_FIRST_ENGINE);
+	}
+#endif
 	midiParser_ccHandler(m, 1, 0, 0.f);
 	kitEngines_assign(slot, engine);
 #else
@@ -378,7 +386,7 @@ static int blockTest(void)
 	block[1] = 'X';												//not a block
 	kitEngines_decode(block, size, out);
 	fail |= memcmp(out, stock, sizeof(out)) != 0;
-	block[1] = 'E'; block[5] = 9;								//invalid engine: that slot stock
+	block[1] = 'E'; block[5] = 99;								//invalid engine: that slot stock
 	kitEngines_decode(block, size, out);
 	fail |= out[0] != stock[0] || memcmp(&out[1], &engines[1], NUM_VOICE_SLOTS - 1) != 0;
 	printf("engine block in kit files: %s\n", fail ? "FAILED" : "ok");
@@ -453,7 +461,13 @@ static int loadVoiceTest(void)
 					bad |= activeParameters[par] != before[par];	//other voices (their targets may be turned off)
 			}
 			voiceControl_noteOn(slot, 60, 127);
-			bad |= renderSound(800, &peak, &nan) == 0 && kit[PAR_VOL1 + slot] > 10;
+			const int len = renderSound(800, &peak, &nan);
+#ifdef SH02_FIRST_ENGINE
+			//SHARD engines decay by themselves: random amp EG / filter settings
+			//(a long attack, a closed filter) can leave them silent
+			if(engine < SH02_FIRST_ENGINE)
+#endif
+			bad |= len == 0 && kit[PAR_VOL1 + slot] > 10;
 			if(bad)
 			{
 				printf("  load voice: slot %u engine %u FAILED\n", slot + 1, engine);
@@ -466,11 +480,68 @@ static int loadVoiceTest(void)
 }
 #endif
 
+#ifdef SH02_FIRST_ENGINE
+//SHARD: every SHARD engine in every slot: it must sound (velocity 127, the
+//engine's defaults from the UI side), stay finite and not clip the mix; each
+//used engine parameter swept 0..127 must keep it finite. The engine state
+//lives outside the voice, so the voice copy checks above don't apply.
+static int shardTest(void)
+{
+	int fail = 0, nan = 0, peak;
+	for(uint8_t e = SH02_FIRST_ENGINE; e < NUM_ENGINES; e++)
+	{
+		printf("shard %-8s", sh02_engineLongName(e));
+		for(uint8_t s = 0; s < NUM_VOICE_SLOTS; s++)
+		{
+			loadKit(0);
+			kitEngines_setStock(kitEngines);
+			kitEngines_apply();
+			for(uint8_t v = 0; v < 6; v++)
+			{
+				sendTarget(FRONT_CC_LFO_TARGET, v, 0);
+				sendTarget(FRONT_CC_VELO_TARGET, v, 0);
+			}
+			switchEngine(s, e);
+			int bad = voiceSlots[s].engine != e || kitEngines[s] != e;
+			renderSound(200, &peak, &nan);
+			voiceControl_noteOn(s, 60, 127);
+			const int len = renderSound(2000, &peak, &nan);
+			bad |= len == 0;
+			for(uint8_t k = 0; k < SH02_NUM_PARAMS; k++)
+			{
+				if(sh02_info(e)->params[k].type == SH_PT_NONE) continue;
+				const uint16_t par = sh02_param(s, k);
+				const uint8_t keep = activeParameters[par];
+				for(int v = 0; v <= 127; v += 127)
+				{
+					sendParam(par, (uint8_t)v);
+					voiceControl_noteOn(s, 60, 127);
+					int p2;
+					renderSound(300, &p2, &nan);
+				}
+				sendParam(par, keep);
+			}
+			printf(" %d:%d/%d%s", s + 1, len, peak, bad ? "!" : "");
+			fail |= bad;
+		}
+		printf("\n");
+	}
+	if(nan) printf("NaN in a SHARD voice\n");
+	printf("SHARD engines: %s\n", fail || nan ? "FAILED" : "ok");
+	return fail || nan;
+}
+#endif
+
 //every slot gets every engine: each track must sound, track 7 must use decay B,
 //track 6 must cut track 7, and the engine specific parameters must reach the engine
 static int engineTest(void)
 {
-	static const char* const names[NUM_ENGINES] = { "drum", "snare", "cymbal", "hihat" };
+	static const char* const names[4] = { "drum", "snare", "cymbal", "hihat" };
+#ifdef SH02_FIRST_ENGINE
+	const int numStock = SH02_FIRST_ENGINE;	//SHARD engines: shardTest()
+#else
+	const int numStock = NUM_ENGINES;
+#endif
 	int fail = 0, peak, nan = 0;
 #if KIT_ENGINES_API >= 3
 	fail |= loadVoiceTest();
@@ -493,7 +564,7 @@ static int engineTest(void)
 	fail |= mapTest();
 #endif
 #endif
-	for(int round = 0; round < NUM_ENGINES; round++)
+	for(int round = 0; round < numStock; round++)
 	{
 #ifdef HAVE_KIT_ENGINES
 		kitEngines_setStock(kitEngines);	//like loading a stock kit
@@ -507,7 +578,7 @@ static int engineTest(void)
 		}
 		for(uint8_t s = 0; s < NUM_VOICE_SLOTS; s++)
 		{
-			switchEngine(s, (s + round) % NUM_ENGINES);
+			switchEngine(s, (s + round) % numStock);
 		}
 		sendParam(PAR_VELOD6_CLOSED, 40);
 		sendParam(PAR_VELOD6_OPEN, 90);
@@ -528,6 +599,9 @@ static int engineTest(void)
 		fail |= roleTest(round);
 #endif
 	}
+#ifdef SH02_FIRST_ENGINE
+	fail |= shardTest();
+#endif
 	if(nan) printf("NaN in a voice\n");
 	printf(fail || nan ? "ENGINE TEST FAILED\n" : "engine test passed\n");
 	return fail || nan;

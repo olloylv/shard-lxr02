@@ -66,6 +66,11 @@ extern const uint8_t slot_rolePar[NUM_VOICE_SLOTS][NUM_SLOT_ROLES];
 
 //write-only command (NRPN 98, not stored in kits): value = slot*4 + engine
 #define PAR_SLOT_ENGINE	PAR_UNUSED_6
+//SHARD: write-only command (NRPN 99) for the SHARD engines: value = slot*19 + i
+//selects LXR-02 engine SH02_FIRST_ENGINE + i (SHARD engine i) for slot 0-5
+#define PAR_SHARD_ENGINE	PAR_UNUSED_7
+#define SH02_ENGINE_FROM_NRPN(v)	((uint8_t)(SH02_FIRST_ENGINE + (v) % SH02_NUM_ENGINES))
+#define SH02_SLOT_FROM_NRPN(v)		((uint8_t)((v) / SH02_NUM_ENGINES))
 
 //the engine every slot has in the stock firmware (and in kits without engine data)
 uint8_t slot_stockEngine(const uint8_t slot);

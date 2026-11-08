@@ -63,6 +63,9 @@ inline float FastTanh(float x) {
 
 // polynomial sine of a phase 0..1
 inline float Sine(float phase) {
+  // InterpolateWrap only wraps positive phases: a negative one (FM feedback)
+  // read in front of the table
+  phase -= floorf(phase);
   return stmlib::InterpolateWrap(plaits::lut_sine, phase, 512.0f);
 }
 

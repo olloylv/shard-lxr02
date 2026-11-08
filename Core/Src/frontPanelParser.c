@@ -54,6 +54,11 @@ void frontParser_parseNrpn(uint8_t value)
 		kitEngines_assign((uint8_t)(value>>2), (uint8_t)(value&3));
 		return;
 	}
+	if(paramNr == PAR_SHARD_ENGINE)
+	{
+		kitEngines_assign(SH02_SLOT_FROM_NRPN(value), SH02_ENGINE_FROM_NRPN(value));
+		return;
+	}
 
 	if(paramNr < NUM_PARAMS) {
 			activeParameters[paramNr] = value;
