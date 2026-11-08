@@ -1,0 +1,160 @@
+/*
+ * sh_params.h - SHARD channel parameter layout
+ *
+ * Copyright (C) 2026 SHARD contributors, based on the LXR firmware
+ * (C) 2012-2026 Erica Synths.
+ * SPDX-License-Identifier: GPL-3.0-only
+ *
+ * SHARD is a modified, unofficial firmware for the Erica Synths LXR Eurorack
+ * module. It is not made, approved or supported by Erica Synths.
+ *
+ * Every one of the 6 channels has the same block of parameters. The engine
+ * slots (SHP_E0 ... SHP_E28) are interpreted by the engine selected with
+ * SHP_ENGINE; everything else (amp EG, filter, mixer, LFO) is the common
+ * channel strip that is identical for all engines.
+ *
+ * All values are stored as uint8_t, like the original LXR parameters:
+ *  - continuous parameters use 0..127
+ *  - list parameters store the list index (0..count-1)
+ */
+#ifndef SH_PARAMS_H_
+#define SH_PARAMS_H_
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define SH_NUM_CHANNELS        6
+#define SH_NUM_ENGINE_PARAMS   29   /* E0..E28 */
+#define SH_BLOCK_SIZE          64   /* = OUTPUT_DMA_SIZE (USE_BIG_SAMPLE_BUFFER) */
+#define SH_SAMPLE_RATE         44140.0f
+
+/* Local parameter index inside a channel block.
+ * Menu sub pages:
+ *   OSC: ENGINE TUNE FINE E0  E1  E2  E3  E4
+ *   MOD: E5  ... E12
+ *   FM : E13 ... E20
+ *   SMP: E21 ... E28
+ *   AEG: ATTACK DECAY SLOPE REPEAT DECAY_ALT VELVOL AEG_MODE
+ *   FLT: FREQ RESO TYPE DRIVE
+ *   MIX: VOL PAN SRATE DRIVE OUT BITS
+ *   LFO: FREQ OFFSET WAVE RETRIG RING_AMT RING_FREQ RING_SRC
+ */
+enum ShLocalParam
+{
+	SHP_ENGINE = 0,
+	SHP_TUNE,          /* MIDI note 0..127 */
+	SHP_FINE,          /* 64 = 0 cents, +-64 cents */
+	SHP_E0,
+	SHP_E_LAST = SHP_E0 + SH_NUM_ENGINE_PARAMS - 1,
+
+	SHP_ATTACK,
+	SHP_DECAY,
+	SHP_SLOPE,
+	SHP_REPEAT,        /* 0 = off, 1..n = number of clap style repeats */
+	SHP_DECAY_ALT,     /* decay used by the alternative trigger (T7 -> channel 6) */
+	SHP_VELVOL,        /* on/off: velocity scales volume */
+	SHP_AEG_MODE,      /* list: 0 = AD, 1 = OFF (engine has its own envelope) */
+
+	SHP_FILT_FREQ,
+	SHP_FILT_RESO,
+	SHP_FILT_TYPE,     /* list: OFF LP HP BP UBP NOT PEA LP2 */
+	SHP_FILT_DRIVE,
+
+	SHP_VOL,
+	SHP_PAN,           /* 0..127, 63 = centre */
+	SHP_SRATE,         /* sample rate reduction, 127 = full rate */
+	SHP_DRIVE,         /* waveshaper amount */
+	SHP_OUT,           /* list: output routing, see mixer.h */
+	SHP_BITS,          /* 0 = off, then fewer and fewer bits */
+
+	SHP_LFO_FREQ,
+	SHP_LFO_OFFSET,
+	SHP_LFO_WAVE,      /* list: SIN TRI SUP SDN SQR RND EUP EDN */
+	SHP_LFO_RETRIG,    /* list: OFF, CH1..CH6 */
+
+	/* SHARD 0.5: ring modulator after the engine. Kits of older versions
+	 * have 0 in these slots = ring off. */
+	SHP_RING_AMT,      /* 0 = off .. 127 = full ring modulation */
+	SHP_RING_FREQ,     /* internal carrier, 20 Hz .. 5 kHz exponential */
+	SHP_RING_SRC,      /* list: SIN TRI SQR, CH1..CH6 (output of a channel) */
+
+	SHP_LOCAL_COUNT
+};
+
+/* stride between two channel blocks in the global parameter array */
+#define SH_CH_STRIDE 56
+#if defined(__cplusplus)
+static_assert(SHP_LOCAL_COUNT <= SH_CH_STRIDE, "channel block too large");
+#else
+_Static_assert(SHP_LOCAL_COUNT <= SH_CH_STRIDE, "channel block too large");
+#endif
+
+/* ring modulator carriers */
+enum { SH_RING_SIN = 0, SH_RING_TRI, SH_RING_SQR, SH_RING_CH1, SH_NUM_RING_SRC = SH_RING_CH1 + 6 };
+
+/* AEG modes */
+enum { SH_AEG_AD = 0, SH_AEG_OFF, SH_NUM_AEG_MODES };
+
+/* Filter types: index 0 is "off", 1.. map to filterTypeEnum of ResonantFilter.h */
+#define SH_NUM_FILTER_TYPES 8
+
+/* Modulation targets (CV matrix destinations).
+ *
+ * A destination value is
+ *   0                         none
+ *   1 .. SH_MOD_GLOBALS       global targets (morph, FX bus), see ShModGlobal
+ *   SH_MOD_CH_BASE + ch * SH_MOD_TARGETS_PER_CH + t
+ *                             channel targets, t indexes sh_modTargetLocal[]
+ *   SH_MOD_EXT_BASE + ch * SH_MOD_EXT_PER_CH + t
+ *                             channel targets added in 0.5 (ring modulator),
+ *                             t indexes sh_modExtLocal[]. Appended after all
+ *                             channel targets so the older numbers stay.
+ * The special channel target SH_MODT_VOCT adds exact 1V/oct pitch instead of
+ * modulating a stored parameter.
+ *
+ * Kit format 1 (SHARD 0.1/0.2) had no global targets and 42 targets per
+ * channel; sh_kitFixup() converts such kits on load. */
+enum ShModGlobal
+{
+	SH_MODG_MORPH = 0,   /* morph amount */
+	SH_MODG_MTARGET,     /* morph target kit */
+	SH_MODG_MSHAPE,      /* morph shape */
+	SH_MODG_FX_WET,
+	SH_MODG_FX_P1,
+	SH_MODG_FX_P2,
+	SH_MODG_FX_P3,
+	SH_MODG_FX_P4,
+	SH_MOD_GLOBALS
+};
+#define SH_MOD_CH_BASE (1 + SH_MOD_GLOBALS)
+#define SH_MOD_TARGETS_PER_CH 27
+#define SH_MOD_ENGINE_TARGETS 14   /* E0..E13; no engine uses more */
+#define SH_MODT_VOCT 0xFF
+#define SH_MOD_EXT_BASE (SH_MOD_CH_BASE + SH_NUM_CHANNELS * SH_MOD_TARGETS_PER_CH)
+#define SH_MOD_EXT_PER_CH 2
+#define SH_NUM_MOD_DESTS (SH_MOD_EXT_BASE + SH_NUM_CHANNELS * SH_MOD_EXT_PER_CH)
+extern const uint8_t sh_modTargetLocal[SH_MOD_TARGETS_PER_CH];
+extern const uint8_t sh_modExtLocal[SH_MOD_EXT_PER_CH];
+
+static inline uint8_t sh_modDestIsGlobal(uint8_t dest) { return dest >= 1 && dest < SH_MOD_CH_BASE; }
+static inline uint8_t sh_modDestGlobal(uint8_t dest) { return (uint8_t)(dest - 1); }
+static inline uint8_t sh_modDestChannel(uint8_t dest)
+{
+	if(dest >= SH_MOD_EXT_BASE) return (uint8_t)((dest - SH_MOD_EXT_BASE) / SH_MOD_EXT_PER_CH);
+	return (uint8_t)((dest - SH_MOD_CH_BASE) / SH_MOD_TARGETS_PER_CH);
+}
+static inline uint8_t sh_modDestLocal(uint8_t dest)
+{
+	if(dest >= SH_MOD_EXT_BASE) return sh_modExtLocal[(dest - SH_MOD_EXT_BASE) % SH_MOD_EXT_PER_CH];
+	return sh_modTargetLocal[(dest - SH_MOD_CH_BASE) % SH_MOD_TARGETS_PER_CH];
+}
+static inline uint8_t sh_modDestMake(uint8_t ch, uint8_t t) { return (uint8_t)(SH_MOD_CH_BASE + ch * SH_MOD_TARGETS_PER_CH + t); }
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* SH_PARAMS_H_ */

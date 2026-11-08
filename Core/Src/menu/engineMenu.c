@@ -16,10 +16,10 @@
 #include "buttonHandler.h"
 #include "ledHandler.h"
 #include <stdio.h>
+#include "Shard/sh02.h"
 static uint8_t engineMenu_slot;
 static uint8_t engineMenu_choice;
 
-static const char* const engineMenu_names[NUM_ENGINES] = { "drum", "snare", "cymbal", "hi-hat" };
 //---------------------------------------------------
 void engineMenu_open(void)
 {
@@ -62,6 +62,12 @@ void engineMenu_repaint(char lines[2][17])
 	else
 		snprintf(lines[0], 17, "voice %u engine", engineMenu_slot+1);
 	//"?" while the choice differs from the current engine
-	snprintf(lines[1], 17, "[%s]%s", engineMenu_names[engineMenu_choice],
+	//SHARD: "[MDL Modal]" for a SHARD engine, "[drum]" for a stock one
+	char name[13];
+	if(sh02_isShard(engineMenu_choice))
+		snprintf(name, sizeof(name), "%s %s", sh02_engineShortName(engineMenu_choice), sh02_engineLongName(engineMenu_choice));
+	else
+		snprintf(name, sizeof(name), "%s", sh02_engineLongName(engineMenu_choice));
+	snprintf(lines[1], 17, "[%s]%s", name,
 			engineMenu_choice == kitEngines[engineMenu_slot] ? "" : "?");
 }

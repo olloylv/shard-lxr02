@@ -51,7 +51,8 @@ static void slot_initEngine(VoiceSlot* s, const uint8_t slot)
 	case ENGINE_SNARE:	Snare_init(&s->u.snare, slot);		break;
 	case ENGINE_CYMBAL:	Cymbal_init(&s->u.cymbal, slot);	break;
 	case ENGINE_HIHAT:	HiHat_init(&s->u.hat, slot);		break;
-	default:			Drum_init(&s->u.drum, slot);		break;
+	case ENGINE_DRUM:	Drum_init(&s->u.drum, slot);		break;
+	default:			Shard_init(&s->u.shard, slot, (uint8_t)(s->engine - SH02_FIRST_ENGINE));	break;
 	}
 }
 //---------------------------------------------------
@@ -103,7 +104,8 @@ void slot_trigger(const uint8_t track, const uint8_t vel, const uint8_t note)
 	case ENGINE_SNARE:	Snare_trigger(&s->u.snare, vel, note);				break;
 	case ENGINE_CYMBAL:	Cymbal_trigger(&s->u.cymbal, vel, note);			break;
 	case ENGINE_HIHAT:	HiHat_trigger(&s->u.hat, vel, second, note);		break;
-	default:			Drum_trigger(&s->u.drum, vel, note);				break;
+	case ENGINE_DRUM:	Drum_trigger(&s->u.drum, vel, note);				break;
+	default:			Shard_trigger(&s->u.shard, vel, second, note);		break;
 	}
 
 	//tracks 6 and 7 share slot 6 but each has its own amp decay. Set after the
@@ -181,6 +183,9 @@ static void slot_setFmRole(OscInfo* modOsc, OscInfo* modOsc2, float* modAmount1,
 //---------------------------------------------------
 uint8_t slot_setRoleParameter(const uint16_t par, const uint8_t itg, const float flt, const uint8_t isFloatModulator)
 {
+	//SHARD: the oscillator waveform and the 7 roles are its engine parameters
+	if(sh02_setParameter(par, itg, flt, isFloatModulator))
+		return 1;
 	for(uint8_t slot=0;slot<NUM_VOICE_SLOTS;slot++)
 	{
 		for(uint8_t role=0;role<NUM_SLOT_ROLES;role++)
@@ -206,8 +211,10 @@ uint8_t slot_setRoleParameter(const uint16_t par, const uint8_t itg, const float
 					slot_setFmRole(&s->u.hat.modOsc, &s->u.hat.modOsc2, &s->u.hat.fmModAmount1,
 							&s->u.hat.fmModAmount2, role, itg, flt, isFloatModulator);
 				break;
-			default:
+			case ENGINE_DRUM:
 				slot_setDrumRole(&s->u.drum, role, itg, flt, isFloatModulator);
+				break;
+			default:	//SHARD: handled above
 				break;
 			}
 			return 1;

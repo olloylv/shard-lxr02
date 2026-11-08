@@ -29,6 +29,7 @@
 #include "menu/engineMenu.h"
 #include "menu/voiceLoad.h"
 #include "menu/projectBrowse.h"
+#include "Shard/sh02.h"
 #include "Soundengine/DSPAudio/mixer.h"
 #include "Soundengine/DSPAudio/DjFilter.h"
 #include "buttonHandler.h"
@@ -264,6 +265,15 @@ const Name valueNames[NUM_NAMES] =
 		{SHORT_LIMITER, CAT_GLOBAL, LONG_LIMITER},/*TEXT_MIXER_LIMITER*/
 		{SHORT_DJ_FILTER, CAT_DJ_FILTER, LONG_DJ_FILTER},/*TEXT_DJ_FILTER*/
 		{SHORT_FIL_RESO, CAT_DJ_FILTER, LONG_DJ_RESO},/*TEXT_DJ_RESO*/
+		//SHARD: the names come from the engine of the active voice (menu_textShort/Long)
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E1*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E2*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E3*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E4*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E5*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E6*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E7*/
+		{SHORT_EMPTY, CAT_OSC, LONG_EMPTY},/*TEXT_SH_E8*/
 
 
 };
@@ -598,6 +608,39 @@ static uint16_t menu_trackPar(const uint16_t par, const uint8_t fromTrack, const
 	return par;
 }
 
+//SHARD: the pages of a SHARD voice are the drum voice's pages (stock slot 0)
+//with the engine parameters E1-E8 on the OSC (E1-E4) and FM (E5-E8) pages and
+//only the velocity settings on the MOD page. The engine parameters are slot 0's
+//parameters here and are mapped to the slot below like all the others.
+static void menu_shardPage(Page* p, const uint8_t sub)
+{
+	uint8_t* text = &p->top1;
+	uint16_t* par = &p->bot1;
+	switch(sub)
+	{
+	case 0:	//OSC: coarse, fine, E1, E2 | E3, E4
+		text[2] = TEXT_SH_E1;	par[2] = sh02_param(0, 0);
+		text[3] = TEXT_SH_E2;	par[3] = sh02_param(0, 1);
+		text[4] = TEXT_SH_E3;	par[4] = sh02_param(0, 2);
+		text[5] = TEXT_SH_E4;	par[5] = sh02_param(0, 3);
+		text[6] = TEXT_EMPTY;	par[6] = PAR_NONE;
+		text[7] = TEXT_EMPTY;	par[7] = PAR_NONE;
+		break;
+	case 2:	//MOD: velocity destination, amount, velocity -> volume
+		text[0] = TEXT_VEL_DEST;	par[0] = PAR_VEL_DEST_1;
+		text[1] = TEXT_VEL_AMT;		par[1] = PAR_VELO_MOD_AMT_1;
+		text[2] = TEXT_VEL_MOD_VOL;	par[2] = PAR_VOLUME_MOD_ON_OFF1;
+		for(uint8_t i=3;i<8;i++) { text[i] = TEXT_EMPTY; par[i] = PAR_NONE; }
+		break;
+	case 3:	//FM: E5-E8
+		for(uint8_t i=0;i<4;i++) { text[i] = (uint8_t)(TEXT_SH_E5 + i); par[i] = sh02_param(0, (uint8_t)(4 + i)); }
+		for(uint8_t i=4;i<8;i++) { text[i] = TEXT_EMPTY; par[i] = PAR_NONE; }
+		break;
+	default:
+		break;
+	}
+}
+
 void menu_updateVoicePages()
 {
 	for(uint8_t page=VOICE1_PAGE;page<=VOICE7_PAGE;page++)
@@ -614,6 +657,8 @@ void menu_updateVoicePages()
 		{
 			Page* dst = &menu_voicePages[page][sub];
 			*dst = menuPages[VOICE1_PAGE + stockSlot][sub];
+			if(sh02_isShard(engine))
+				menu_shardPage(dst, sub);
 			uint16_t* par = &dst->bot1;
 			uint8_t* text = &dst->top1;
 			for(uint8_t i=0;i<8;i++)
@@ -657,12 +702,18 @@ static uint16_t menu_stockParam(const uint16_t par)
 
 uint16_t menu_paramDtype(const uint16_t par)
 {
+	//SHARD: the engine parameters of a SHARD voice have the engine's types
+	const uint16_t sh = sh02_dtype(par);
+	if(sh)
+		return sh;
 	return parameter_dtypes[menu_stockParam(par)];
 }
 
 //tuning parameters show +-63 around 60 instead of 63
 static uint8_t menu_isTuningParam(const uint16_t parNr)
 {
+	if(sh02_dtype(parNr))
+		return 0;	//SHARD: bipolar engine parameters show -63..+64
 	switch(menu_stockParam(parNr))
 	{
 	case PAR_COARSE1: case PAR_COARSE2: case PAR_COARSE3: case PAR_COARSE4: case PAR_COARSE5: case PAR_COARSE6:
@@ -1688,6 +1739,33 @@ void menu_setNumSamples(uint8_t num)
 }
 //-----------------------------------------------------------------
 
+//-----------------------------------------------------------------
+//SHARD: the names of TEXT_SH_E1..E8 come from the engine of the active voice
+static uint8_t menu_isShardText(const uint8_t text)
+{
+	return text >= TEXT_SH_E1 && text <= TEXT_SH_E8;
+}
+static const char* menu_textShort(const uint8_t text)
+{
+	if(menu_isShardText(text))
+		return sh02_paramShortName((uint8_t)(text - TEXT_SH_E1));
+	return shortNames[pgm_read_byte(&valueNames[text].shortName)];
+}
+static const char* menu_textLong(const uint8_t text)
+{
+	if(menu_isShardText(text))
+		return sh02_paramLongName((uint8_t)(text - TEXT_SH_E1));
+	return longNames[pgm_read_byte(&valueNames[text].longName)];
+}
+static const char* menu_textCat(const uint8_t text)
+{
+	if(menu_isShardText(text))
+	{
+		return sh02_engineLongName(kitEngines[sh02_nameSlotOrActive()]);
+	}
+	return catNames[pgm_read_byte(&valueNames[text].category)];
+}
+
 static void menu_displayModTargetFull(uint8_t curParmVal)
 {
 
@@ -1700,14 +1778,9 @@ static void menu_displayModTargetFull(uint8_t curParmVal)
 		return;
 	}
 
-	strcpy(&editDisplayBuffer[1][0],
-		(const char PROGMEM *)(&catNames[
-					 pgm_read_byte(&valueNames[nameidx].category)
-										]));
-	strcpy(&editDisplayBuffer[1][8],
-		(const char PROGMEM *)(&longNames[
-					pgm_read_byte(&valueNames[nameidx].longName)
-										 ]));
+	strcpy(&editDisplayBuffer[1][0], menu_textCat(nameidx));
+	strcpy(&editDisplayBuffer[1][8], menu_textLong(nameidx));
+	sh02_setNameSlot(NUM_VOICE_SLOTS);
 }
 
 static void menu_displayModTargetShort(uint8_t curParmVal, char *valueAsText, char inclVoice)
@@ -1725,7 +1798,8 @@ static void menu_displayModTargetShort(uint8_t curParmVal, char *valueAsText, ch
 			valueAsText[off++]=(char)(voiceFromModTargValue(curParmVal) + '0');
 		}
 
-		memcpy(&valueAsText[off],shortNames[pgm_read_byte(&valueNames[name].shortName)],(size_t)(3-off));
+		memcpy(&valueAsText[off],menu_textShort(name),(size_t)(3-off));
+		sh02_setNameSlot(NUM_VOICE_SLOTS);
 
 	}
 }
@@ -1735,6 +1809,8 @@ static void menu_displayModTargetShort(uint8_t curParmVal, char *valueAsText, ch
 // (as opposed to repainting the load save screen)
 void menu_repaintGeneric()
 {
+	//SHARD: names of the active voice (a skipped mod target may have set another)
+	sh02_setNameSlot(NUM_VOICE_SLOTS);
 	//first get the active sub-page and parameter from the menuIndex
 	const uint8_t activeParameter	= menuIndex & MASK_PARAMETER; // this will be 0 to 7 for the 4 columns
 	const uint8_t activePage		= (menuIndex&MASK_PAGE)>>PAGE_SHIFT; // this is the active sub page
@@ -1781,11 +1857,9 @@ void menu_repaintGeneric()
 		else // parameter type is not automation target
 		{
 			//Top row left -> category
-			strcpy(&editDisplayBuffer[0][0],
-				(const char PROGMEM *)(&catNames[pgm_read_byte(&valueNames[parName].category)]));
+			strcpy(&editDisplayBuffer[0][0], menu_textCat(parName));
 			//Top row right -> long name
-			strcpy(&editDisplayBuffer[0][8],
-				(const char PROGMEM *)(&longNames[pgm_read_byte(&valueNames[parName].longName)]));
+			strcpy(&editDisplayBuffer[0][8], menu_textLong(parName));
 
 			//Bottom row -> parameter value (set below)
 			if(parNr == PAR_DJ_FILTER)
@@ -1902,14 +1976,10 @@ void menu_repaintGeneric()
 		const uint8_t is2ndPage = (activeParameter>3) * 4;
 
 		// top texts
-		memcpy(&editDisplayBuffer[0][0],
-			&shortNames[pgm_read_byte(&valueNames[pgm_read_byte(&ap->top1+is2ndPage)].shortName)],3);
-		memcpy(&editDisplayBuffer[0][4],
-			&shortNames[pgm_read_byte(&valueNames[pgm_read_byte(&ap->top2+is2ndPage)].shortName)],3);
-		memcpy(&editDisplayBuffer[0][8],
-			&shortNames[pgm_read_byte(&valueNames[pgm_read_byte(&ap->top3+is2ndPage)].shortName)],3);
-		memcpy(&editDisplayBuffer[0][12],
-			&shortNames[pgm_read_byte(&valueNames[pgm_read_byte(&ap->top4+is2ndPage)].shortName)],3);
+		memcpy(&editDisplayBuffer[0][0], menu_textShort(pgm_read_byte(&ap->top1+is2ndPage)), 3);
+		memcpy(&editDisplayBuffer[0][4], menu_textShort(pgm_read_byte(&ap->top2+is2ndPage)), 3);
+		memcpy(&editDisplayBuffer[0][8], menu_textShort(pgm_read_byte(&ap->top3+is2ndPage)), 3);
+		memcpy(&editDisplayBuffer[0][12], menu_textShort(pgm_read_byte(&ap->top4+is2ndPage)), 3);
 
 		// capitalize selected item
 		upr_three(&editDisplayBuffer[0][(activeParameter%4)*4]);
@@ -2907,6 +2977,9 @@ static uint8_t getMaxEntriesForMenu(uint8_t menuId)
 	case MENU_STEP_SHIFT:
 			return stepShiftNames[0][0];
 
+	case MENU_SH_E1 ... MENU_SH_E8:
+		return sh02_menuCount((uint8_t)(menuId - MENU_SH_E1));
+
 	default:
 		return 0;
 	}
@@ -3017,6 +3090,9 @@ static void getMenuItemNameForValue(const uint8_t menuId, const uint8_t curParmV
 		p = MENU_ITEM(stepShiftNames);
 		break;
 
+	case MENU_SH_E1 ... MENU_SH_E8:
+		sh02_menuLabel((uint8_t)(menuId - MENU_SH_E1), curParmVal, buf);
+		return;
 
 	default:
 		p=menuText_dash;

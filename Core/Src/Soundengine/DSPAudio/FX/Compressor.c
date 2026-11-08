@@ -43,16 +43,30 @@ void Compressor_init(Compressor *c)
 }
 
 // linear -> dB conversion
-static double lin2dB( double lin ) {
-	static const double LOG_2_DB = 8.6858896380650365530225783783321;	// 20 / ln( 10 )
-	return logf( lin ) * LOG_2_DB;
+//SHARD: fast approximations for the gain computer (about 0.01 dB), the same
+//curve as lin2dB/dB2lin (as in the SHARD Eurorack firmware 0.5)
+#define COMP_DB_PER_LOG2 6.0205999f		/* 20 * log10(2) */
+static inline float comp_fastLog2(float x)
+{
+	union { float f; uint32_t i; } v = { x };
+	const float e = (float)(int32_t)((v.i >> 23) & 0xFF) - 127.f;
+	v.i = (v.i & 0x007FFFFF) | 0x3F800000;	/* mantissa in [1,2) */
+	const float m = v.f;
+	return e + ((0.15392465f * m - 1.0295584f) * m + 3.010851f) * m - 2.1338866f;
+}
+static inline float comp_fastExp2(float x)
+{
+	if(x < -60.f) return 0.f;
+	if(x > 60.f) x = 60.f;
+	const float fl = floorf(x);
+	const float f = x - fl;
+	const float p = ((0.07902041f * f + 0.22412837f) * f + 0.69683624f) * f + 0.99981246f;
+	union { float f; uint32_t i; } v;
+	v.i = (uint32_t)((int32_t)fl + 127) << 23;
+	return p * v.f;
 }
 
 // dB -> linear conversion
-static double dB2lin( double dB ) {
-	static const double DB_2_LOG = 0.11512925464970228420089957273422;	// ln( 10 ) / 20
-	return expf( dB * DB_2_LOG );
-}
 
 //att/release, time in ms to reach 63% of final value
 void Compressor_setAttack(Compressor *c, float a)
@@ -121,20 +135,18 @@ void Compressor_process(Compressor *c, int16_t *fxBuffer,int32_t* outL, int32_t*
 			float in = 0.5 * (fxBuffer[i*2]/32768.f) + 0.5 * (fxBuffer[i*2+1]/32768.f);
 			double peak = fabs(in);
 
-			//value over thresh
-			peak += DC_OFFSET;
-			double peakdB = lin2dB(peak);
-			double overdB = peakdB - c->tresh;
-			if ( overdB < 0.0 )
-				overdB = 0.0;
+			//SHARD: float gain computer with fast log2/exp2 (was double logf/expf per sample)
+			const float peakdB = COMP_DB_PER_LOG2 * comp_fastLog2((float)peak + 1e-25f);
+			float overdB = peakdB - (float)c->tresh;
+			if(overdB < 0.f)
+				overdB = 0.f;
 
 			// dynamic selection: attack or release?
-			double  coeff = overdB > c->env ? c->attack : c->release;
-			c->env = overdB + coeff * (c->env - overdB);
-			//c->env = c->env + (1-coeff) * (overdB -c->env); //should be the same as above, without 1-
+			const float env = (float)c->env;
+			const float coeff = overdB > env ? (float)c->attack : (float)c->release;
+			c->env = overdB + coeff * (env - overdB);
 
-			double gr = c->env * (c->ratio - 1.0);
-			gr = dB2lin(gr);
+			const float gr = c->env > 1e-4 ? comp_fastExp2((float)c->env * ((float)c->ratio - 1.f) * (1.f / COMP_DB_PER_LOG2)) : 1.f;
 			//debugWatch = gr;
 
 			left[i]  = __SSAT(fxBuffer[i*2] * gr * c->markupGain, 16);//gain;
@@ -162,20 +174,18 @@ void Compressor_process(Compressor *c, int16_t *fxBuffer,int32_t* outL, int32_t*
 			float in = fxBuffer[idx1]/32768.f;
 			double peak = fabs(in);
 
-			//value over thresh
-			peak += DC_OFFSET;
-			double peakdB = lin2dB(peak);
-			double overdB = peakdB - c->tresh;
-			if ( overdB < 0.0 )
-				overdB = 0.0;
+			//SHARD: float gain computer with fast log2/exp2 (was double logf/expf per sample)
+			const float peakdB = COMP_DB_PER_LOG2 * comp_fastLog2((float)peak + 1e-25f);
+			float overdB = peakdB - (float)c->tresh;
+			if(overdB < 0.f)
+				overdB = 0.f;
 
 			// dynamic selection: attack or release?
-			double  coeff = overdB > c->env ? c->attack : c->release;
-			c->env = overdB + coeff * (c->env - overdB);
-			//c->env = c->env + (1-coeff) * (overdB -c->env); //should be the same as above, without 1-
+			const float env = (float)c->env;
+			const float coeff = overdB > env ? (float)c->attack : (float)c->release;
+			c->env = overdB + coeff * (env - overdB);
 
-			double gr = c->env * (c->ratio - 1.0);
-			gr = dB2lin(gr);
+			const float gr = c->env > 1e-4 ? comp_fastExp2((float)c->env * ((float)c->ratio - 1.f) * (1.f / COMP_DB_PER_LOG2)) : 1.f;
 			//debugWatch = gr;
 
 			left[i]  = __SSAT(fxBuffer[idx1] * gr * c->markupGain, 16);//gain; (saturate like the stereo path, it wrapped)

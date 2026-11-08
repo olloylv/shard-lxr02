@@ -19,6 +19,9 @@
 //---------------------------------------------------
 
 #ifndef __LCD_MENU_MANAGER__
+//SHARD: menu ids (MenuText.h) of the list parameters E1-E8 of the active SHARD voice
+#define MENU_SH_E1			27
+#define MENU_SH_E8			34
 #define __LCD_MENU_MANAGER__
 
 //#include <avr/io.h>
@@ -276,6 +279,15 @@ enum NamesEnum
 	TEXT_MIXER_LIMITER,
 	TEXT_DJ_FILTER,
 	TEXT_DJ_RESO,
+	//SHARD: engine parameters E1-E8 of a SHARD voice, named by its engine (Shard/sh02.h)
+	TEXT_SH_E1,
+	TEXT_SH_E2,
+	TEXT_SH_E3,
+	TEXT_SH_E4,
+	TEXT_SH_E5,
+	TEXT_SH_E6,
+	TEXT_SH_E7,
+	TEXT_SH_E8,
 
 
 	NUM_NAMES

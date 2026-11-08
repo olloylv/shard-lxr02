@@ -232,6 +232,14 @@ static void switchEngine(uint8_t slot, uint8_t engine)
 	m.status = MIDI_CC2;
 	m.data1 = PAR_SLOT_ENGINE - 128;
 	m.data2 = (uint8_t)(slot * 4 + engine);
+#ifdef PAR_SHARD_ENGINE
+	if(engine >= SH02_FIRST_ENGINE)
+	{
+		//SHARD: NRPN 99, value = slot*19 + engine-4
+		m.data1 = PAR_SHARD_ENGINE - 128;
+		m.data2 = (uint8_t)(slot * SH02_NUM_ENGINES + engine - SH02_FIRST_ENGINE);
+	}
+#endif
 	midiParser_ccHandler(m, 1, 0, 0.f);
 	kitEngines_assign(slot, engine);
 #else
@@ -378,7 +386,7 @@ static int blockTest(void)
 	block[1] = 'X';												//not a block
 	kitEngines_decode(block, size, out);
 	fail |= memcmp(out, stock, sizeof(out)) != 0;
-	block[1] = 'E'; block[5] = 9;								//invalid engine: that slot stock
+	block[1] = 'E'; block[5] = 99;								//invalid engine: that slot stock
 	kitEngines_decode(block, size, out);
 	fail |= out[0] != stock[0] || memcmp(&out[1], &engines[1], NUM_VOICE_SLOTS - 1) != 0;
 	printf("engine block in kit files: %s\n", fail ? "FAILED" : "ok");
@@ -453,7 +461,13 @@ static int loadVoiceTest(void)
 					bad |= activeParameters[par] != before[par];	//other voices (their targets may be turned off)
 			}
 			voiceControl_noteOn(slot, 60, 127);
-			bad |= renderSound(800, &peak, &nan) == 0 && kit[PAR_VOL1 + slot] > 10;
+			const int len = renderSound(800, &peak, &nan);
+#ifdef SH02_FIRST_ENGINE
+			//SHARD engines decay by themselves: random amp EG / filter settings
+			//(a long attack, a closed filter) can leave them silent
+			if(engine < SH02_FIRST_ENGINE)
+#endif
+			bad |= len == 0 && kit[PAR_VOL1 + slot] > 10;
 			if(bad)
 			{
 				printf("  load voice: slot %u engine %u FAILED\n", slot + 1, engine);
@@ -466,11 +480,68 @@ static int loadVoiceTest(void)
 }
 #endif
 
+#ifdef SH02_FIRST_ENGINE
+//SHARD: every SHARD engine in every slot: it must sound (velocity 127, the
+//engine's defaults from the UI side), stay finite and not clip the mix; each
+//used engine parameter swept 0..127 must keep it finite. The engine state
+//lives outside the voice, so the voice copy checks above don't apply.
+static int shardTest(void)
+{
+	int fail = 0, nan = 0, peak;
+	for(uint8_t e = SH02_FIRST_ENGINE; e < NUM_ENGINES; e++)
+	{
+		printf("shard %-8s", sh02_engineLongName(e));
+		for(uint8_t s = 0; s < NUM_VOICE_SLOTS; s++)
+		{
+			loadKit(0);
+			kitEngines_setStock(kitEngines);
+			kitEngines_apply();
+			for(uint8_t v = 0; v < 6; v++)
+			{
+				sendTarget(FRONT_CC_LFO_TARGET, v, 0);
+				sendTarget(FRONT_CC_VELO_TARGET, v, 0);
+			}
+			switchEngine(s, e);
+			int bad = voiceSlots[s].engine != e || kitEngines[s] != e;
+			renderSound(200, &peak, &nan);
+			voiceControl_noteOn(s, 60, 127);
+			const int len = renderSound(2000, &peak, &nan);
+			bad |= len == 0;
+			for(uint8_t k = 0; k < SH02_NUM_PARAMS; k++)
+			{
+				if(sh02_info(e)->params[k].type == SH_PT_NONE) continue;
+				const uint16_t par = sh02_param(s, k);
+				const uint8_t keep = activeParameters[par];
+				for(int v = 0; v <= 127; v += 127)
+				{
+					sendParam(par, (uint8_t)v);
+					voiceControl_noteOn(s, 60, 127);
+					int p2;
+					renderSound(300, &p2, &nan);
+				}
+				sendParam(par, keep);
+			}
+			printf(" %d:%d/%d%s", s + 1, len, peak, bad ? "!" : "");
+			fail |= bad;
+		}
+		printf("\n");
+	}
+	if(nan) printf("NaN in a SHARD voice\n");
+	printf("SHARD engines: %s\n", fail || nan ? "FAILED" : "ok");
+	return fail || nan;
+}
+#endif
+
 //every slot gets every engine: each track must sound, track 7 must use decay B,
 //track 6 must cut track 7, and the engine specific parameters must reach the engine
 static int engineTest(void)
 {
-	static const char* const names[NUM_ENGINES] = { "drum", "snare", "cymbal", "hihat" };
+	static const char* const names[4] = { "drum", "snare", "cymbal", "hihat" };
+#ifdef SH02_FIRST_ENGINE
+	const int numStock = SH02_FIRST_ENGINE;	//SHARD engines: shardTest()
+#else
+	const int numStock = NUM_ENGINES;
+#endif
 	int fail = 0, peak, nan = 0;
 #if KIT_ENGINES_API >= 3
 	fail |= loadVoiceTest();
@@ -493,7 +564,7 @@ static int engineTest(void)
 	fail |= mapTest();
 #endif
 #endif
-	for(int round = 0; round < NUM_ENGINES; round++)
+	for(int round = 0; round < numStock; round++)
 	{
 #ifdef HAVE_KIT_ENGINES
 		kitEngines_setStock(kitEngines);	//like loading a stock kit
@@ -507,7 +578,7 @@ static int engineTest(void)
 		}
 		for(uint8_t s = 0; s < NUM_VOICE_SLOTS; s++)
 		{
-			switchEngine(s, (s + round) % NUM_ENGINES);
+			switchEngine(s, (s + round) % numStock);
 		}
 		sendParam(PAR_VELOD6_CLOSED, 40);
 		sendParam(PAR_VELOD6_OPEN, 90);
@@ -528,6 +599,9 @@ static int engineTest(void)
 		fail |= roleTest(round);
 #endif
 	}
+#ifdef SH02_FIRST_ENGINE
+	fail |= shardTest();
+#endif
 	if(nan) printf("NaN in a voice\n");
 	printf(fail || nan ? "ENGINE TEST FAILED\n" : "engine test passed\n");
 	return fail || nan;
@@ -549,6 +623,77 @@ int main(int argc, char** argv)
 		argc--;
 	}
 #ifdef HAVE_VOICE_SLOTS
+#ifdef SH02_FIRST_ENGINE
+	//SHARD: --kit <kit.snd> <out.wav>: render a kit file (as the LXR-02 loads it:
+	//engines first, then the parameters) with one bar of a fixed pattern at 120 BPM
+	if(argc == 4 && strcmp(argv[1], "--kit") == 0)
+	{
+		mapPeripherals();
+		for(int i = 0; i < 6; i++) faders[i] = 1.f;
+		setJackSwitches(0xf);
+		soundengine_init();
+		static uint8_t file[512];
+		FILE* f = fopen(argv[2], "rb");
+		if(!f) { perror(argv[2]); return 2; }
+		const size_t n = fread(file, 1, sizeof(file), f);
+		fclose(f);
+		if(n < 8 + END_OF_SOUND_PARAMETERS) return 2;
+		kitEngines_decode(&file[8 + END_OF_SOUND_PARAMETERS], (uint16_t)(n - 8 - END_OF_SOUND_PARAMETERS), kitEngines);
+		kitEngines_apply();
+		for(uint16_t par = 1; par < END_OF_SOUND_PARAMETERS; par++)
+		{
+			if(par == PAR_SLOT_ENGINE || par == PAR_SHARD_ENGINE) continue;
+			if(par >= PAR_TARGET_LFO1 && par <= PAR_TARGET_LFO6) continue;
+			if(par >= PAR_VEL_DEST_1 && par <= PAR_VEL_DEST_6) continue;
+			sendParam(par, file[8 + par]);
+		}
+		for(uint8_t v = 0; v < 6; v++)
+		{
+			sendParam(PAR_VOICE_LFO1 + v, file[8 + PAR_VOICE_LFO1 + v]);
+			sendTarget(FRONT_CC_LFO_TARGET, v, file[8 + PAR_TARGET_LFO1 + v]);
+			sendTarget(FRONT_CC_VELO_TARGET, v, file[8 + PAR_VEL_DEST_1 + v]);
+		}
+		//16 steps at 120 BPM: kick 0 4 8 12, snare 4 12, hats every 2nd, open hat 14, perc/FX off-beats
+		static const char* const pat[7] = { "x...x...x...x...", "..x.......x..x..", ".......x.......x", "....x.......x...", "....x.......x...", "x.x.x.x.x.x.x...", "..............x." };
+		//optional: SHARD_PAT="row1,row2,...,row7" (16 characters each)
+		const char* rows[7]; static char patBuf[7][17];
+		for(int t = 0; t < 7; t++) rows[t] = pat[t];
+		const char* env = getenv("SHARD_PAT");
+		for(int t = 0; env && t < 7; t++) { strncpy(patBuf[t], env, 16); patBuf[t][16] = 0; rows[t] = patBuf[t]; env = strchr(env, ','); if(env) env++; }
+		const int blocksPerStep = (int)(44140.f * 0.125f / OUTPUT_DMA_SIZE + 0.5f);
+		FILE* o = fopen(argv[3], "wb");
+		if(!o) { perror(argv[3]); return 2; }
+		static const uint8_t hdr[44] = { 'R','I','F','F',0,0,0,0,'W','A','V','E','f','m','t',' ',16,0,0,0,1,0,2,0, 0x6c,0xac,0,0, 0xb0,0xb1,0x02,0, 4,0,16,0,'d','a','t','a',0,0,0,0 };
+		fwrite(hdr, 1, 44, o);
+		int16_t output[OUTPUT_DMA_SIZE * 2], output2[OUTPUT_DMA_SIZE * 2];
+		uint32_t frames = 0;
+		for(int bar = 0; bar < 2; bar++)
+			for(int step = 0; step < 16; step++)
+			{
+				for(uint8_t t = 0; t < 7; t++)
+					if(rows[t][step] == 'x') voiceControl_noteOn(t, 60, getenv("SHARD_VEL") ? (uint8_t)atoi(getenv("SHARD_VEL")) : (step % 4 == 0 ? 120 : 75));
+				for(int b = 0; b < blocksPerStep; b++)
+				{
+					mixer_calcNextSampleBlock(output, output2);
+					//stereo out 1 + stereo out 2 summed, like a mixer
+					for(int i = 0; i < OUTPUT_DMA_SIZE * 2; i++)
+					{
+						int32_t x = output[i] + output2[i];
+						if(x > 32767) x = 32767;
+						if(x < -32768) x = -32768;
+						int16_t y = (int16_t)x;
+						fwrite(&y, 2, 1, o);
+					}
+					frames += OUTPUT_DMA_SIZE;
+				}
+			}
+		const uint32_t data = frames * 4, riff = data + 36;
+		fseek(o, 4, SEEK_SET); fwrite(&riff, 4, 1, o);
+		fseek(o, 40, SEEK_SET); fwrite(&data, 4, 1, o);
+		fclose(o);
+		return 0;
+	}
+#endif
 	if(argc == 2 && strcmp(argv[1], "--engines") == 0)
 	{
 		mapPeripherals();
