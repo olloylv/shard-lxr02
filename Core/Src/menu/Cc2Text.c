@@ -439,6 +439,10 @@ uint8_t getModTargetIdxFromGapIdx(uint8_t v, uint8_t gapidx)
 uint8_t modTargetNameIdx(const uint8_t idx)
 {
 	const uint16_t par = pgm_read_word(&modTargets[idx].param);
+	//SHARD: the engine parameters of a SHARD voice, named by its engine
+	const uint8_t sh = sh02_modTargetName(par);
+	if(sh)
+		return sh == 0xFF ? MOD_TARGET_HIDDEN : sh;
 	const uint8_t slot = kitEngines_rolePar2Slot(par);
 	if(slot >= NUM_VOICE_SLOTS || kitEngines[slot] == slot_stockEngine(slot))
 		return pgm_read_byte(&modTargets[idx].nameIdx);

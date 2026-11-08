@@ -18,6 +18,7 @@
 #include "Preset/PresetManager.h"
 #include "Soundengine/Sequencer/sequencer.h"
 #include <string.h>
+#include "Shard/sh02.h"
 
 uint8_t kitEngines[NUM_VOICE_SLOTS] = { ENGINE_DRUM, ENGINE_DRUM, ENGINE_DRUM, ENGINE_SNARE, ENGINE_CYMBAL, ENGINE_HIHAT };
 uint8_t kitEngines_ram[NUM_KIT_SLOTS][NUM_VOICE_SLOTS];
@@ -280,6 +281,8 @@ void kitEngines_assign(const uint8_t slot, const uint8_t engine)
 		//decay B: the hi-hat's own, otherwise the same as decay A
 		activeParameters[PAR_VELOD6_OPEN] = kitEngines_initValue(stockSlot == slot ? PAR_VELOD6_OPEN : PAR_VELOD1 + 2*stockSlot);
 	}
+	//SHARD: engine parameters, pitch, amp EG and filter from the engine
+	sh02_applyDefaults(slot, engine, activeParameters);
 
 	//the slot's own LFO and velocity modulation start off (copied targets would
 	//point at the stock slot's voice); the LFO's voice is the slot itself

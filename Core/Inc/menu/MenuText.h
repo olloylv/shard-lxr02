@@ -43,6 +43,7 @@
 #define MENU_STEP_FLAM	 	24
 #define MENU_STEP_SHIFT	 	25
 #define MENU_AUDIO_OUT_FX	26
+//SHARD: list parameters E1-E8 of the active SHARD voice (Shard/sh02.h, menu.h)
 
 //-----------------------------------------------------------------
 // Shared texts. Reduce mem usage by pooling common text

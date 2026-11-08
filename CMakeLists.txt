@@ -25,7 +25,7 @@ endif()
 project(OpenElixir-02
     VERSION 1.2
     DESCRIPTION "OpenElixir-02, custom firmware for the Erica Synths LXR-02 drum machine"
-    LANGUAGES C ASM
+    LANGUAGES C CXX ASM
 )
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -35,12 +35,17 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
+# SHARD: the sound engines are C++ (Core/Src/Shard/engines)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Same optimisation as the original STM32CubeIDE configurations: the audio
 # engine has to run at -O3 to keep up in real time, even in Debug builds.
 set(CMAKE_C_FLAGS_DEBUG     "-O3 -g3")
 set(CMAKE_C_FLAGS_RELEASE   "-O3 -g0")
+set(CMAKE_CXX_FLAGS_DEBUG   "-O3 -g3")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g0")
 set(CMAKE_ASM_FLAGS_DEBUG   "-g3")
 set(CMAKE_ASM_FLAGS_RELEASE "")
 

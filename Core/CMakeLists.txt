@@ -94,6 +94,7 @@ add_library(lxr_dsp OBJECT
     Src/Soundengine/DSPAudio/transientGenerator.c
     Src/Soundengine/DSPAudio/transientTables.c
     Src/Soundengine/DSPAudio/VoiceSlot.c
+    Src/Soundengine/DSPAudio/ShardVoice.c
     Src/Soundengine/DSPAudio/wavetable.c
     Src/Soundengine/DSPAudio/FX/Compressor.c
     Src/Soundengine/DSPAudio/FX/Delay.c
@@ -140,8 +141,29 @@ add_library(lxr_usb_app OBJECT
     Src/Soundengine/USB/usb_manager.c
 )
 
+# SHARD: sound engines (C++) and the third party DSP they use (Mutable
+# Instruments Plaits / stmlib, MIT). Fast math as on the Eurorack module, for
+# these sources only: the stock voices keep their flags.
+add_library(lxr_shard OBJECT
+    Src/Shard/sh02.c
+    Src/Shard/engines/engines.cc
+    Src/Shard/engines/plaits_engines.cc
+    Src/Shard/engines/md_engines.cc
+    Src/Shard/engines/idm_engines.cc
+    ThirdParty/stmlib/dsp/units.cc
+    ThirdParty/stmlib/utils/random.cc
+    ThirdParty/plaits/resources.cc
+    ThirdParty/plaits/dsp/physical_modelling/modal_voice.cc
+    ThirdParty/plaits/dsp/physical_modelling/resonator.cc
+    ThirdParty/plaits/dsp/physical_modelling/string.cc
+    ThirdParty/plaits/dsp/physical_modelling/string_voice.cc
+)
+target_include_directories(lxr_shard PRIVATE ThirdParty Src/Shard/engines)
+target_compile_options(lxr_shard PRIVATE -ffast-math -freciprocal-math -fomit-frame-pointer)
+
 set(LXR_APP_MODULES
     lxr_platform
+    lxr_shard
     lxr_io
     lxr_ui
     lxr_preset

@@ -23,6 +23,7 @@
 #include "Soundengine/DSPAudio/Snare.h"
 #include "Soundengine/DSPAudio/CymbalVoice.h"
 #include "Soundengine/DSPAudio/HiHat.h"
+#include "Soundengine/DSPAudio/ShardVoice.h"
 #include "Parameters.h"
 
 #define NUM_VOICE_SLOTS	6
@@ -35,7 +36,8 @@ enum VoiceEngine
 	ENGINE_SNARE	= 1,
 	ENGINE_CYMBAL	= 2,
 	ENGINE_HIHAT	= 3,
-	NUM_ENGINES
+	//SHARD: engines 4..22 are the SHARD engines (Shard/sh02.h)
+	NUM_ENGINES		= SH02_FIRST_ENGINE + SH02_NUM_ENGINES
 };
 
 typedef struct
@@ -47,6 +49,7 @@ typedef struct
 		SnareVoice	snare;
 		CymbalVoice	cymbal;
 		HiHatVoice	hat;
+		ShardVoice	shard;
 	} u;
 	uint8_t		engine;		//enum VoiceEngine
 	float		decay[2];	//slot 6 only: amp decay of track 6 [0] and track 7 [1]
