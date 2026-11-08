@@ -9,9 +9,6 @@ Erica Synths. Everything OpenElixir-02 does is kept; the SHARD additions are lis
 
 > SHARD-02 is not official Erica Synths firmware and is not affiliated with or approved by
 > Erica Synths or by the OpenElixir-02 author. You install it at your own risk.
->
-> **Status: 0.5 is a test build.** It has been tested on a host build of the sound engine, not yet
-> on an LXR-02. See [docs/TESTING.md](docs/TESTING.md).
 
 ## SHARD additions
 
@@ -92,8 +89,7 @@ The GitHub Actions workflow inherited from OpenElixir-02 builds every push; the 
 attached to each run in the repository's Actions tab, and the run summary shows the memory usage
 compared with the stock firmware.
 
-The host test of the sound engine (all engines in all slots, kit loading, renders of kit files to
-WAV) is in [test/engine](test/engine); the kit converter in [tools/kits](tools/kits).
+The kit converter is in [tools/kits](tools/kits).
 
 Requirements, build options, the memory map, troubleshooting and development details are in the
 original firmware's README: **[README_LXR.md](README_LXR.md)**.

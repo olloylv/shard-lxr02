@@ -3,7 +3,7 @@
 SHARD-02 versions. The changes of the OpenElixir-02 base are in its
 [release notes](https://github.com/tunefish777/openelixir-02/releases).
 
-## 0.5 — test build
+## 0.5 — 2026-11-09
 
 First version, based on OpenElixir-02 1.2.
 
@@ -15,7 +15,7 @@ First version, based on OpenElixir-02 1.2.
   format is unchanged.
 - The drum voice's amp EG, transient, filter, drive, LFO and mix around every SHARD engine.
 - Factory projects 40-49: the 640 kits of the SHARD 0.5 banks, converted.
-- Kit converter (`tools/kits`) and host engine test (`test/engine`) for the SHARD engines.
+- Kit converter (`tools/kits`).
 - Lighter compressor gain computer (float instead of double math, same sound), so heavy kits with
   the compressor have more CPU headroom.
 - Firmware file name `LXR_SHARD-02_V0.5.img`.

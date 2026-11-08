@@ -141,5 +141,4 @@ python3 tools/kits/convert_shard.py <shard.json> <lxr02.json> <out dir> <bank di
 ```
 
 `shard.json` is the parameter layout of the SHARD firmware (`shard_render --dump` from the SHARD
-repository), `lxr02.json` that of SHARD-02 (`tools/kits/lxr02_dump`, built with the host test in
-`test/engine`). Each bank becomes 2 projects, starting at the given number.
+repository), `lxr02.json` that of SHARD-02 (`tools/kits/lxr02_dump`). Each bank becomes 2 projects, starting at the given number.
