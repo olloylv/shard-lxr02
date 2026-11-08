@@ -1,14 +1,40 @@
-# OpenElixir-02
+# SHARD-02
 
-[![Build](https://github.com/tunefish777/openelixir-02/actions/workflows/build.yml/badge.svg)](https://github.com/tunefish777/openelixir-02/actions/workflows/build.yml)
+SHARD-02 is custom firmware for the Erica Synths LXR-02 drum machine that adds the 19 drum engines
+of [SHARD](https://github.com/olloylv/shard-firmware) (the SHARD firmware for the LXR Eurorack
+module) to the voice slots. It is based on
+[OpenElixir-02](https://github.com/tunefish777/openelixir-02) 1.2 by tunefish777, which in turn is
+based on the open-source [LXR V2 firmware](https://github.com/erica-synths/lxr-desktop-app) by
+Erica Synths. Everything OpenElixir-02 does is kept; the SHARD additions are listed first.
 
-Custom firmware for the Erica Synths LXR-02 drum machine. It is based on the open-source
-[LXR V2 firmware](https://github.com/erica-synths/lxr-desktop-app) by Erica Synths.
+> SHARD-02 is not official Erica Synths firmware and is not affiliated with or approved by
+> Erica Synths or by the OpenElixir-02 author. You install it at your own risk.
+>
+> **Status: 0.5 is a test build.** It has been tested on a host build of the sound engine, not yet
+> on an LXR-02. See [docs/TESTING.md](docs/TESTING.md).
 
-> OpenElixir-02 is not official Erica Synths firmware and is not affiliated with or approved by
-> Erica Synths. You install it at your own risk.
+## SHARD additions
 
-## Goals
+**19 more voice engines.** Besides drum, snare, cymbal and hi-hat, each of the 6 voice slots can run
+one of the SHARD engines: 8 from Mutable Instruments Plaits (analog/synth bass and snare drums,
+hi-hat, modal, string, particle), 6 in the style of drum computers and FM drums (TRX-BD, TRX-SD,
+TRX-CP, TRX-HH, EFM, GND) and 5 IDM/glitch engines (Zap, Crush, Bytebeat, RingClst, Comb). They are
+chosen like the other engines: select a voice and press SHIFT + KIT, or send NRPN 99.
+
+**Same workflow as the stock engines.** A SHARD voice keeps the drum voice's pages: tuning, amp EG,
+transient, filter, drive, LFO and mix work as usual, and the engine's own parameters (up to 8) are on
+the OSC and FM pages. They are ordinary kit parameters, so parameter locks, morph, the LFOs,
+velocity modulation and MIDI CC/NRPN work on them, and the kit file format is unchanged.
+
+**Factory kits.** The 640 kits of the SHARD 0.5 banks, converted for the LXR-02, as projects 40-49.
+
+Details: [docs/SHARD.md](docs/SHARD.md). Changes: [CHANGELOG.md](CHANGELOG.md).
+
+## OpenElixir-02
+
+The rest of this README describes OpenElixir-02, the base of SHARD-02. It applies unchanged.
+
+### Goals
 
 - **Sound and timing come first.** Nothing has a higher priority than uninterrupted audio and a
   steady sequencer: menus, the display, the SD card and MIDI all wait for them.
@@ -18,7 +44,7 @@ Custom firmware for the Erica Synths LXR-02 drum machine. It is based on the ope
 - **The stock sound stays available.** Every change to the core sound of the unit comes with a
   switch in the config menu, so the stock sound is always one setting away.
 
-## Features
+### Features
 
 **Kit management.** Load full kits and single voices from any project:
 - Hold LOAD and press step button 1-7 (Drum 1 ... OP HH) to load just that voice from any kit of
@@ -58,18 +84,23 @@ cmake --preset release      # add -DARM_TOOLCHAIN_DIR=<toolchain>/bin if arm-non
 cmake --build --preset release
 ```
 
-This creates `build/release/LXR_OpenElixir-02_V<version>.img`. Copy it to the SD card and install it
+This creates `build/release/LXR_SHARD-02_V<version>.img`. Copy it to the SD card and install it
 with the LXR-02's built-in updater (hold the encoder while switching on). The `LXR` prefix in the file
 name is required by the updater.
 
-Every push is also built on GitHub Actions: the firmware files are attached to each run in the
-[Actions tab](https://github.com/tunefish777/openelixir-02/actions/workflows/build.yml), and the run
-summary shows the memory usage compared with the stock firmware.
+The GitHub Actions workflow inherited from OpenElixir-02 builds every push; the firmware files are
+attached to each run in the repository's Actions tab, and the run summary shows the memory usage
+compared with the stock firmware.
+
+The host test of the sound engine (all engines in all slots, kit loading, renders of kit files to
+WAV) is in [test/engine](test/engine); the kit converter in [tools/kits](tools/kits).
 
 Requirements, build options, the memory map, troubleshooting and development details are in the
 original firmware's README: **[README_LXR.md](README_LXR.md)**.
 
 ## Licence
 
-GPL-3.0-only, with the additional terms in [NOTICE.md](NOTICE.md); see [LICENSE](LICENSE). "Erica
+GPL-3.0-only, with the additional terms in [NOTICE.md](NOTICE.md); see [LICENSE](LICENSE). The SHARD
+engines include code from Mutable Instruments Plaits and stmlib by Emilie Gillet (MIT licence, in
+`Core/ThirdParty`). "Erica
 Synths", "LXR" and "LXR-02" are trademarks of Erica Synths, and the LXR hardware is their property.

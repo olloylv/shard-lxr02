@@ -45,7 +45,8 @@ CLASSIC = {
 }
 # SHARD filter types off LP HP BP UBP Nch Pk LP2 -> LXR-02 LP HP BP UBP Nch Pek LP2 off
 FILTER = [7, 0, 1, 2, 3, 4, 5, 6]
-# SHARD FX off drv glt cmp del rng -> LXR-02 off drv rng cmp del (glitch: off)
+# SHARD FX off drv glt cmp del rng -> LXR-02 off drv rng cmp del (glitch, SHARD ring: off;
+# the SHARD 0.5 ring modulator has other parameters than the stock one)
 FX = {0: 0, 1: 1, 2: 0, 3: 3, 4: 4, 5: 0}
 
 # mod targets: (param, voice 1-6) -> index
@@ -208,6 +209,8 @@ def convert(kit):
     out[XP["PAR_FX_TYPE"]] = FX.get(fx, 0)
     if fx == 2:
         notes.append("glitch fx")
+    elif fx == 5:
+        notes.append("ring fx")
     # routing, dry/wet, dist type, P1-P4, ratio, wave, reverb type, delay type: same order on both
     for k in range(1, 12):
         out[XP["PAR_FX_TYPE"] + k] = s[SP["FX_TYPE"] + k]
